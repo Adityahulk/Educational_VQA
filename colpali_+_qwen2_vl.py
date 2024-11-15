@@ -48,7 +48,7 @@ import io
 
 """Let's see how the PDF looks like."""
 # Define the path to the PDF file
-pdf_path = "./pdfs/pdfs/visual incontext learning.pdf"
+pdf_path = "./pfds/visual incontext learning.pdf"
 
 # Convert PDF pages to images
 images = convert_from_path(pdf_path)
@@ -60,7 +60,7 @@ RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
 
 """We can directly index our document using RAG, simply passing pdf file path is enough."""
 RAG.index(
-    input_path="./pfds/pfds/",
+    input_path="./pfds/",
     index_name="image_index", # index will be saved at index_root/index_name/
     store_collection_with_index=False,
     overwrite=True
