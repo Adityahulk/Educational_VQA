@@ -1,0 +1,10 @@
+torch==2.0.1
+transformers==4.46.1
+qwen-vl-utils
+byaldi
+pdf2image
+Pillow
+huggingface_hub
+poppler-utils
+flash-attention @ git+https://github.com/Dao-AILab/flash-attention.git
+
