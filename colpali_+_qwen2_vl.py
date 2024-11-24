@@ -14,7 +14,7 @@ os.environ['USE_TF'] = 'NO'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Paths to the PDF files (modify to include your PDF directory)
-PDF_DIRECTORY = "/path/to/pdf/folder"
+PDF_DIRECTORY = "./documents"
 
 def convert_pdf_to_images(pdf_path):
     """Converts a PDF file into a list of images."""
