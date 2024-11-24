@@ -25,13 +25,12 @@ def initialize_rag_model(index_name="global_index"):
     RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
-def add_to_index(RAG, pdf_path, index_name):
-    """Indexes a PDF file."""
-    RAG.index(
+def add_to_existing_index(RAG, pdf_path, index_name="global_index"):
+    """Adds pages to an existing index."""
+    RAG.add_to_index(
         input_path=pdf_path,
         index_name=index_name,
-        store_collection_with_index=False,
-        overwrite=False,
+        overwrite=False  # Ensures existing data in the index is not overwritten
     )
 
 def search_query_with_rag(RAG, query, k=10):
@@ -139,7 +138,7 @@ def process_query_across_pdfs(query, k=10):
 
     # Index all PDFs
     for pdf_file in pdf_files:
-        add_to_index(RAG, pdf_file, index_name="global_index")
+        add_to_existing_index(RAG, pdf_file, index_name="global_index")
 
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=k)
