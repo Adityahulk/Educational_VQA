@@ -6,7 +6,6 @@ from PIL import Image
 import io
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
-import pdfplumber
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 
 # Set environment variables for library compatibility
@@ -26,20 +25,13 @@ def initialize_rag_model(index_name="global_index"):
     RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
-
-def extract_text_from_pdf(pdf_path):
-    """Extracts text from a PDF file."""
-    with pdfplumber.open(pdf_path) as pdf:
-        return " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
-
-
-def add_to_existing_index(RAG, pdf_path, index_name="global_index"):
-    """Adds content to an existing index."""
-    pdf_content = extract_text_from_pdf(pdf_path)
-    RAG.add_to_index(
-        data=pdf_content,  # Adjust this based on the actual expected argument
+def add_to_index(RAG, pdf_path, index_name):
+    """Indexes a PDF file."""
+    RAG.index(
+        input_path=pdf_path,
         index_name=index_name,
-        overwrite=False
+        store_collection_with_index=False,
+        overwrite=False,
     )
 
 def search_query_with_rag(RAG, query, k=10):
@@ -147,7 +139,7 @@ def process_query_across_pdfs(query, k=10):
 
     # Index all PDFs
     for pdf_file in pdf_files:
-        add_to_existing_index(RAG, pdf_file, index_name="global_index")
+        add_to_index(RAG, pdf_file, index_name="global_index")
 
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=k)
