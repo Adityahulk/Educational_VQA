@@ -10,3 +10,4 @@ torchvision
 opencv-python-headless
 reportlab
 tf2onnx
+pdfplumber

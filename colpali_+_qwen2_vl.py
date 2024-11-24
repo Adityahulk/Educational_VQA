@@ -6,6 +6,7 @@ from PIL import Image
 import io
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
+import pdfplumber
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 
 # Set environment variables for library compatibility
@@ -25,12 +26,20 @@ def initialize_rag_model(index_name="global_index"):
     RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
+
+def extract_text_from_pdf(pdf_path):
+    """Extracts text from a PDF file."""
+    with pdfplumber.open(pdf_path) as pdf:
+        return " ".join(page.extract_text() for page in pdf.pages if page.extract_text())
+
+
 def add_to_existing_index(RAG, pdf_path, index_name="global_index"):
-    """Adds pages to an existing index."""
+    """Adds content to an existing index."""
+    pdf_content = extract_text_from_pdf(pdf_path)
     RAG.add_to_index(
-        input_path=pdf_path,
+        data=pdf_content,  # Adjust this based on the actual expected argument
         index_name=index_name,
-        overwrite=False  # Ensures existing data in the index is not overwritten
+        overwrite=False
     )
 
 def search_query_with_rag(RAG, query, k=10):
