@@ -70,6 +70,21 @@ def process_ocr(image, save_path="./reference.jpg"):
     os.remove(save_path)  # Clean up saved file
     return ocr_result.export()
 
+def is_same_line(box1, box2):
+    """Determines if two boxes are on the same line."""
+    box1_midy = (box1[1] + box1[3]) / 2
+    box2_midy = (box2[1] + box2[3]) / 2
+    return box1_midy < box2[3] and box1_midy > box2[1] and box2_midy < box1[3] and box2_midy > box1[1]
+
+def union_box(box1, box2):
+    """Combines two bounding boxes."""
+    return [
+        min(box1[0], box2[0]),
+        min(box1[1], box2[1]),
+        max(box1[2], box2[2]),
+        max(box1[3], box2[3]),
+    ]
+    
 def extract_text_and_boxes(ocr_data):
     """Extracts text and bounding boxes from OCR data."""
     texts, boxes = [], []
