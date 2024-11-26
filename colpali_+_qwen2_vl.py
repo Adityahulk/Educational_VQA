@@ -25,13 +25,13 @@ def initialize_rag_model(index_name="global_index"):
     RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
-def add_to_index(RAG, pdf_path, index_name):
-    """Indexes a PDF file."""
+def index_documents_in_folder(RAG, folder_path, index_name):
+    """Indexes all documents in a folder at once."""
     RAG.index(
-        input_path=pdf_path,
+        input_path=folder_path,  # Pass the folder path
         index_name=index_name,
         store_collection_with_index=False,
-        overwrite=False,
+        overwrite=True,  # Overwrite index if it exists
     )
 
 def search_query_with_rag(RAG, query, k=10):
@@ -135,11 +135,8 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None):
 def process_query_across_pdfs(query, k=10):
     """Processes a query across multiple PDFs."""
     RAG = initialize_rag_model()
-    pdf_files = [os.path.join(PDF_DIRECTORY, f) for f in os.listdir(PDF_DIRECTORY) if f.endswith('.pdf')]
-
-    # Index all PDFs
-    for pdf_file in pdf_files:
-        add_to_index(RAG, pdf_file, index_name="global_index")
+    
+    index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
 
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=k)
