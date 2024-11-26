@@ -61,11 +61,13 @@ def initialize_ocr_model():
     """Loads the OCR model."""
     return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
 
-def process_ocr(image):
+def process_ocr(image, save_path="/content/reference.jpg"):
     """Processes OCR on an image and extracts text."""
+    image.save(save_path, "JPEG")
     ocr_model = initialize_ocr_model()
-    document = DocumentFile.from_images([image])
+    document = DocumentFile.from_images(save_path)
     ocr_result = ocr_model(document)
+    os.remove(save_path)  # Clean up saved file
     return ocr_result.export()
 
 def extract_text_and_boxes(ocr_data):
