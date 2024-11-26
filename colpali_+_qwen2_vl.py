@@ -1,5 +1,6 @@
 import os
 import json
+import torch
 from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
 from PIL import Image
@@ -133,31 +134,52 @@ def layout_text_with_spaces(texts, boxes):
     return space_line_texts
 
 def initialize_llm():
-    """Loads the LLM and its processor."""
+    """Loads the LLM and its processor with proper GPU support."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Running on device:- ", device)
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         "Qwen/Qwen2-VL-2B-Instruct",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16
-    ).cuda().eval()
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", trust_remote_code=True)
-    return model, processor
+    ).to(device).eval()
+    
+    processor = AutoProcessor.from_pretrained(
+        "Qwen/Qwen2-VL-2B-Instruct", 
+        trust_remote_code=True
+    )
+    return model, processor, device
 
-def generate_answer_with_llm(model, processor, text, images=None, videos=None):
-    """Generates an answer using the LLM."""
+def generate_answer_with_llm(model, processor, text, images=None, videos=None, device="cuda"):
+    """
+    Generates an answer using the LLM with proper GPU handling.
+    :param model: Preloaded model moved to the correct device
+    :param processor: Processor to handle inputs
+    :param text: Query text
+    :param images: List of images (optional, as tensors)
+    :param videos: List of videos (optional, as tensors)
+    :param device: The device ('cuda' or 'cpu') to perform computations
+    :return: Decoded output
+    """
+    # Prepare inputs on the appropriate device
     inputs = processor(
         text=[text],
         images=images,
         videos=videos,
         padding=True,
         return_tensors="pt",
-    ).to("cuda")
-
-    generated_ids = model.generate(**inputs, max_new_tokens=10000)
-    return processor.batch_decode(
+    ).to(device)
+    
+    # Ensure model inference uses the correct device
+    with torch.no_grad():  # Disable gradient calculation for inference
+        generated_ids = model.generate(**inputs, max_new_tokens=10000)
+    
+    # Decode the outputs, handling sequences properly
+    results = processor.batch_decode(
         [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)],
         skip_special_tokens=True,
         clean_up_tokenization_spaces=False,
     )
+    return results
 
 def process_query_across_pdfs(query, k=10):
     """Processes a query across multiple PDFs."""
