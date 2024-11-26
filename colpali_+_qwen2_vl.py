@@ -211,7 +211,7 @@ def process_query_across_pdfs(query, k=10):
     combined_text = "\n\n".join(ocr_texts)
 
     # Prepare LLM and processor
-    model, processor = initialize_llm()
+    model, processor, device = initialize_llm()
 
     # Prepare input for the LLM
     prompt = (
