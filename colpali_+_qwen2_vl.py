@@ -145,6 +145,7 @@ def process_query_across_pdfs(query, k=10):
     # Process OCR on top results
     ocr_texts = []
     for result in search_results:
+        print(result)
         pdf_path = result["file_path"]
         page_num = result["page_num"]
         images = convert_pdf_to_images(pdf_path)
