@@ -64,7 +64,7 @@ def initialize_ocr_model():
 def process_ocr(image):
     """Processes OCR on an image and extracts text."""
     ocr_model = initialize_ocr_model()
-    document = DocumentFile.from_images(image)
+    document = DocumentFile.from_images([image])
     ocr_result = ocr_model(document)
     return ocr_result.export()
 
