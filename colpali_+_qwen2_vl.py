@@ -1,5 +1,5 @@
-import torch
 import os
+import json
 from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
 from PIL import Image
@@ -13,8 +13,9 @@ os.environ['USE_TORCH'] = 'YES'
 os.environ['USE_TF'] = 'NO'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-# Paths to the PDF files (modify to include your PDF directory)
+# Paths to the PDF files and mapping file
 PDF_DIRECTORY = "./documents"
+MAPPING_FILE = "doc_id_to_path.json"
 
 def convert_pdf_to_images(pdf_path):
     """Converts a PDF file into a list of images."""
@@ -26,12 +27,21 @@ def initialize_rag_model(index_name="global_index"):
     return RAG
 
 def index_documents_in_folder(RAG, folder_path, index_name):
-    """Indexes all documents in a folder at once."""
+    """Indexes all documents in a folder and creates a doc_id-to-path mapping."""
+    # Get list of PDF files
+    pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
+
+    # Create mapping between doc_id and file paths
+    doc_id_to_path = {i: pdf_path for i, pdf_path in enumerate(pdf_files)}
+    with open(MAPPING_FILE, "w") as f:
+        json.dump(doc_id_to_path, f)
+
+    # Index documents
     RAG.index(
-        input_path=folder_path,  # Pass the folder path
+        input_path=folder_path,
         index_name=index_name,
         store_collection_with_index=False,
-        overwrite=True,  # Overwrite index if it exists
+        overwrite=True,
     )
 
 def search_query_with_rag(RAG, query, k=10):
@@ -136,18 +146,21 @@ def process_query_across_pdfs(query, k=10):
     """Processes a query across multiple PDFs."""
     RAG = initialize_rag_model()
     
-    index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    # Load index and document mapping
+    if not os.path.exists(MAPPING_FILE):
+        index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    with open(MAPPING_FILE, "r") as f:
+        doc_id_to_path = json.load(f)
 
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=k)
-    top_images = [result["page_num"] for result in search_results]
+    ocr_texts = []
 
     # Process OCR on top results
-    ocr_texts = []
     for result in search_results:
-        print(result)
-        pdf_path = result["file_path"]
+        doc_id = result["doc_id"]
         page_num = result["page_num"]
+        pdf_path = doc_id_to_path[str(doc_id)]
         images = convert_pdf_to_images(pdf_path)
         compressed_image = compress_image(images[page_num - 1])
         ocr_result = process_ocr(compressed_image)
