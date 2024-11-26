@@ -14,7 +14,7 @@ os.environ['USE_TF'] = 'NO'
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Paths to the PDF files and mapping file
-PDF_DIRECTORY = "./documents"
+PDF_DIRECTORY = "./document_test"
 MAPPING_FILE = "doc_id_to_path.json"
 
 def convert_pdf_to_images(pdf_path):
@@ -84,7 +84,7 @@ def union_box(box1, box2):
         max(box1[2], box2[2]),
         max(box1[3], box2[3]),
     ]
-    
+
 def extract_text_and_boxes(ocr_data):
     """Extracts text and bounding boxes from OCR data."""
     texts, boxes = [], []
