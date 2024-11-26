@@ -61,7 +61,7 @@ def initialize_ocr_model():
     """Loads the OCR model."""
     return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
 
-def process_ocr(image, save_path="/content/reference.jpg"):
+def process_ocr(image, save_path="./reference.jpg"):
     """Processes OCR on an image and extracts text."""
     image.save(save_path, "JPEG")
     ocr_model = initialize_ocr_model()
