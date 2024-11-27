@@ -1,3 +1,5 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import os
 import json
 import torch
@@ -8,6 +10,8 @@ import io
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+
+app = FastAPI()
 
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
@@ -20,6 +24,9 @@ MAPPING_FILE = './doc_id_to_path.json'
 INDEX_ROOT = "/home/ubuntu/Educational_VQA/.byaldi"
 INDEX_NAME = "global_index"
 overwrite= False
+
+class QueryRequest(BaseModel):
+    query: str
 
 def convert_pdf_to_images(pdf_path):
     """Converts a PDF file into a list of images."""
@@ -226,7 +233,9 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
-def process_query_across_pdfs(query, k=10):
+@app.post("/query")
+def process_query_across_pdfs(request: QueryRequest):
+    query = request.query
     """Processes a query across multiple PDFs."""
     RAG = initialize_rag_model(overwrite=False, device="cuda", verbose=1)
     
@@ -238,7 +247,7 @@ def process_query_across_pdfs(query, k=10):
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=k)
+    search_results = search_query_with_rag(RAG, query, k=10)
     ocr_texts = []
 
     # Process OCR on top results
@@ -269,9 +278,4 @@ def process_query_across_pdfs(query, k=10):
 
     # Generate output
     output = generate_answer_with_llm(model, processor, prompt)
-    print("Generated Answer:", output)
-
-# Example usage
-if __name__ == "__main__":
-    user_query = "What is the melting point of the Acetic acid in Table 4.1?"
-    process_query_across_pdfs(user_query, k=20)
+    return {"query": query, "answer": output}
