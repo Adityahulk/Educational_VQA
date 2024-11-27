@@ -16,84 +16,60 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 # Paths to the PDF files and mapping file
 PDF_DIRECTORY = "./document_test"
-MAPPING_FILE = './doc_id_to_path.json'
-INDEX_ROOT = "/home/ubuntu/Educational_VQA/.byaldi"
-INDEX_NAME = "global_index"
-overwrite= False
+MAPPING_FILE = "doc_id_to_path.json"
+INDEX_DIRECTORY = "./index/global_index"  # Path where index files are stored
+
+
+def remove_old_index(index_directory):
+    """Removes old indexing data if it exists."""
+    import shutil
+    if os.path.exists(index_directory):
+        shutil.rmtree(index_directory)
+        print(f"Removed old index at {index_directory}.")
+    else:
+        print(f"No index found at {index_directory}.")
+
 
 def convert_pdf_to_images(pdf_path):
     """Converts a PDF file into a list of images."""
     return convert_from_path(pdf_path)
 
-def initialize_rag_model(overwrite=False, device="cuda", verbose=1):
-    index_path = os.path.join(INDEX_ROOT, INDEX_NAME)
-    print("overwrite-----", overwrite)
-    print('index_path---', index_path)
-    print(f"Checking index path: {index_path}")
-    if os.path.exists(index_path) and not overwrite:
-        print("Index exists and overwrite=False. Loading existing index.")
-        RAG = RAGMultiModalModel.from_index(
-            index_path=index_path,
-            index_root=INDEX_ROOT,
-            device=device,
-            verbose=verbose
-        )
-        print("Loaded existing index.")
-    else:
-        if os.path.exists(index_path) and overwrite:
-            print("Index exists and overwrite=True. Deleting existing index.")
-            shutil.rmtree(index_path)
-        # Initialize RAG from pretrained
-        print("Initializing RAG from pretrained.")
-        RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
-        # Index documents
-        print("Indexing documents.")
-        index_documents_in_folder(RAG, PDF_DIRECTORY, INDEX_NAME, overwrite=overwrite)
+
+def initialize_rag_model(index_name="global_index"):
+    """Initializes the RAG MultiModal model."""
+    RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
-'''
-def initialize_rag_model(overwrite=False, device="cuda", verbose=1):
-    index_path = os.path.join(INDEX_ROOT, INDEX_NAME)
-    if os.path.exists(index_path) and not overwrite:
-        RAG = RAGMultiModalModel.from_index(
-            index_path=index_path,
-            index_root=INDEX_ROOT,
-            device=device,
-            verbose=verbose
-        )
-        print("Loaded existing index.")
-    else:
-        if os.path.exists(index_path) and overwrite:
-            shutil.rmtree(index_path)
-        # Initialize RAG from pretrained
-        RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
-        # Index documents
-        index_documents_in_folder(RAG, PDF_DIRECTORY, INDEX_NAME, overwrite)
-    return RAG
 
-'''
-def index_documents_in_folder(RAG, folder_path, index_name, overwrite=False):
+def index_documents_in_folder(RAG, folder_path, index_name):
     """Indexes all documents in a folder and creates a doc_id-to-path mapping."""
-    print(f"Indexing documents in {folder_path} with index_name {index_name}, overwrite={overwrite}")
-    # Get list of PDF files
+    index_path = f"./index/{index_name}"
+    remove_old_index(index_path)
+
     pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
-    # Create mapping between doc_id and file paths
+
+    if not pdf_files:
+        raise ValueError(f"No PDF files found in {folder_path}. Make sure the directory contains valid PDFs.")
+
     doc_id_to_path = {i: pdf_path for i, pdf_path in enumerate(pdf_files)}
-    # Write mapping file only if overwrite is True or it doesn't exist
-    if overwrite or not os.path.exists(MAPPING_FILE):
-        with open(MAPPING_FILE, "w") as f:
-            json.dump(doc_id_to_path, f)
-    # Index documents
+    with open(MAPPING_FILE, "w") as f:
+        json.dump(doc_id_to_path, f)
+
+    print(f"Indexing {len(pdf_files)} files...")
     RAG.index(
         input_path=folder_path,
         index_name=index_name,
         store_collection_with_index=False,
-        overwrite=overwrite,
+        overwrite=True,
     )
+    print("Indexing completed successfully.")
+
+
 def search_query_with_rag(RAG, query, k=10):
     """Performs a search query on the indexed data."""
     results = RAG.search(query, k=k)
     return results
+
 
 def compress_image(image, new_width=256, new_height=256, quality=75):
     """Compress and resize an image."""
@@ -103,9 +79,11 @@ def compress_image(image, new_width=256, new_height=256, quality=75):
     buffer.seek(0)
     return Image.open(buffer)
 
+
 def initialize_ocr_model():
     """Loads the OCR model."""
     return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+
 
 def process_ocr(image, save_path="./reference.jpg"):
     """Processes OCR on an image and extracts text."""
@@ -116,11 +94,13 @@ def process_ocr(image, save_path="./reference.jpg"):
     os.remove(save_path)  # Clean up saved file
     return ocr_result.export()
 
+
 def is_same_line(box1, box2):
     """Determines if two boxes are on the same line."""
     box1_midy = (box1[1] + box1[3]) / 2
     box2_midy = (box2[1] + box2[3]) / 2
     return box1_midy < box2[3] and box1_midy > box2[1] and box2_midy < box1[3] and box2_midy > box1[1]
+
 
 def union_box(box1, box2):
     """Combines two bounding boxes."""
@@ -130,6 +110,7 @@ def union_box(box1, box2):
         max(box1[2], box2[2]),
         max(box1[3], box2[3]),
     ]
+
 
 def extract_text_and_boxes(ocr_data):
     """Extracts text and bounding boxes from OCR data."""
@@ -144,6 +125,7 @@ def extract_text_and_boxes(ocr_data):
                         word['geometry'][1][0], word['geometry'][1][1]
                     ])
     return {"text": texts, "boxes": boxes}
+
 
 def layout_text_with_spaces(texts, boxes):
     """Arranges text spatially based on bounding boxes."""
@@ -178,6 +160,7 @@ def layout_text_with_spaces(texts, boxes):
 
     return space_line_texts
 
+
 def initialize_llm():
     """Loads the LLM and its processor with proper GPU support."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -194,18 +177,9 @@ def initialize_llm():
     )
     return model, processor, device
 
+
 def generate_answer_with_llm(model, processor, text, images=None, videos=None, device="cuda"):
-    """
-    Generates an answer using the LLM with proper GPU handling.
-    :param model: Preloaded model moved to the correct device
-    :param processor: Processor to handle inputs
-    :param text: Query text
-    :param images: List of images (optional, as tensors)
-    :param videos: List of videos (optional, as tensors)
-    :param device: The device ('cuda' or 'cpu') to perform computations
-    :return: Decoded output
-    """
-    # Prepare inputs on the appropriate device
+    """Generates an answer using the LLM."""
     inputs = processor(
         text=[text],
         images=images,
@@ -213,12 +187,8 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
         padding=True,
         return_tensors="pt",
     ).to(device)
-    
-    # Ensure model inference uses the correct device
-    with torch.no_grad():  # Disable gradient calculation for inference
+    with torch.no_grad():
         generated_ids = model.generate(**inputs, max_new_tokens=10000)
-    
-    # Decode the outputs, handling sequences properly
     results = processor.batch_decode(
         [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)],
         skip_special_tokens=True,
@@ -226,13 +196,13 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
+
 def process_query_across_pdfs(query, k=10):
     """Processes a query across multiple PDFs."""
-    RAG = initialize_rag_model(overwrite=False, device="cuda", verbose=1)
+    RAG = initialize_rag_model()
     
-    # Load index and document mapping
+    # Remove old index and re-index documents
     if not os.path.exists(MAPPING_FILE):
-        print('-----yes mapping file exists')
         index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
     with open(MAPPING_FILE, "r") as f:
         doc_id_to_path = json.load(f)
@@ -267,11 +237,11 @@ def process_query_across_pdfs(query, k=10):
         f"Document:\n{combined_text}\n\nQuestion: {query}\n\nAnswer:"
     )
 
-    # Generate output
-    output = generate_answer_with_llm(model, processor, prompt)
-    print("Generated Answer:", output)
+    # Generate answer
+    answer = generate_answer_with_llm(model, processor, prompt, device=device)
+    return answer
 
-# Example usage
-if __name__ == "__main__":
-    user_query = "What is the melting point of the Acetic acid in Table 4.1?"
-    process_query_across_pdfs(user_query, k=20)
+
+# Run example query
+query = "What is the total revenue of the company?"
+print(process_query_across_pdfs(query))
