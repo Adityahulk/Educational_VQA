@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+import argparse
 from pydantic import BaseModel
 import os
 import json
@@ -97,6 +98,36 @@ def index_documents_in_folder(RAG, folder_path, index_name, overwrite=False):
         store_collection_with_index=False,
         overwrite=overwrite,
     )
+
+def add_index_documents_in_folder(RAG, folder_path, index_name, overwrite=False):
+    """
+    Indexes all documents in a folder and creates a doc_id-to-path mapping 
+    using the `add_to_index` method.
+    """
+    print(f"Indexing documents in {folder_path} with index_name {index_name}, overwrite={overwrite}")
+    
+    # Get list of PDF files
+    pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
+    
+    # Create mapping between doc_id and file paths
+    doc_id_to_path = {i: pdf_path for i, pdf_path in enumerate(pdf_files)}
+    
+    # Write mapping file only if overwrite is True or it doesn't exist
+    if overwrite or not os.path.exists(MAPPING_FILE):
+        with open(MAPPING_FILE, "w") as f:
+            json.dump(doc_id_to_path, f)
+    
+    # Add documents to the index individually
+    for doc_id, pdf_path in doc_id_to_path.items():
+        print(f"Adding document {pdf_path} to index with doc_id {doc_id}")
+        RAG.add_to_index(
+            input_item=pdf_path,
+            store_collection_with_index=False,  # Adjust based on your requirement
+            doc_id=doc_id,
+            metadata={"filename": os.path.basename(pdf_path)}  # Optional metadata
+        )
+    print(f"Indexing completed for {len(pdf_files)} documents.")
+
 def search_query_with_rag(RAG, query, k=10):
     """Performs a search query on the indexed data."""
     results = RAG.search(query, k=k)
@@ -233,16 +264,20 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
-@app.post("/query")
-def process_query_across_pdfs(request: QueryRequest):
-    query = request.query
+# @app.post("/query")
+
+def process_query_across_pdfs(query, use_index_documents: bool):
+    # query = request.query
     """Processes a query across multiple PDFs."""
     RAG = initialize_rag_model(overwrite=False, device="cuda", verbose=1)
     
     # Load index and document mapping
-    if not os.path.exists(MAPPING_FILE):
-        print('-----yes mapping file exists')
+    if use_index_documents:
+        # Use the specified indexing function
         index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    else:
+        add_index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    
     with open(MAPPING_FILE, "r") as f:
         doc_id_to_path = json.load(f)
 
@@ -278,4 +313,7 @@ def process_query_across_pdfs(request: QueryRequest):
 
     # Generate output
     output = generate_answer_with_llm(model, processor, prompt)
-    return {"query": query, "answer": output}
+    print("answer:- " + output)
+
+if __name__ == "__main__":
+    process_query_across_pdfs("Explain power of accomoddation", True)
