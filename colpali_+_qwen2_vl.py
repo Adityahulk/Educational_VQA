@@ -54,9 +54,6 @@ def initialize_rag_model(overwrite=False, device="cuda", verbose=1):
         # Initialize RAG from pretrained
         print("Initializing RAG from pretrained.")
         RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
-        # Index documents
-        print("Indexing documents.")
-        index_documents_in_folder(RAG, PDF_DIRECTORY, INDEX_NAME, overwrite=overwrite)
     return RAG
 
 '''
@@ -110,7 +107,7 @@ def add_index_documents_in_folder(RAG, folder_path, index_name, overwrite=False)
     pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
     
     # Create mapping between doc_id and file paths
-    doc_id_to_path = {i: pdf_path for i, pdf_path in enumerate(pdf_files)}
+    doc_id_to_path = {i+20: pdf_path for i, pdf_path in enumerate(pdf_files)}
     
     # Write mapping file only if overwrite is True or it doesn't exist
     if overwrite or not os.path.exists(MAPPING_FILE):
@@ -316,4 +313,4 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     print("answer:- " + output)
 
 if __name__ == "__main__":
-    process_query_across_pdfs("Explain power of accomoddation", True)
+    process_query_across_pdfs("Explain power of accomoddation", False)
