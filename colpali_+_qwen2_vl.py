@@ -263,7 +263,15 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     
     # Ensure model inference uses the correct device
     with torch.no_grad():  # Disable gradient calculation for inference
-        generated_ids = model.generate(**inputs, max_new_tokens=10000)
+        # Generate with more diverse sampling parameters
+        generated_ids = model.generate(
+            **inputs, 
+            max_new_tokens=300,  # Limit the output length
+            do_sample=True,       # Use sampling for diversity
+            top_p=0.95,           # Nucleus sampling
+            top_k=50,             # Limit candidate tokens
+            temperature=0.7       # Control randomness
+        )
     
     # Decode the outputs, handling sequences properly
     results = processor.batch_decode(
