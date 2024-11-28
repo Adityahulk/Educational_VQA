@@ -293,7 +293,6 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=10)
     ocr_texts = []
-
     # Process OCR on top results
     for result in search_results:
         doc_id = result["doc_id"]
@@ -322,7 +321,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Generate output
     output = generate_answer_with_llm(model, processor, prompt)
-    print("answer:- " + output)
+    print("answer:- " + str(output))
 
 if __name__ == "__main__":
     process_query_across_pdfs("Explain power of accomoddation", False)
