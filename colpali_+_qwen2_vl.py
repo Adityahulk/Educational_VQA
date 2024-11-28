@@ -106,16 +106,28 @@ def add_index_documents_in_folder(RAG, folder_path, index_name, overwrite=False)
     # Get list of PDF files
     pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
     
-    # Create mapping between doc_id and file paths
-    doc_id_to_path = {i+20: pdf_path for i, pdf_path in enumerate(pdf_files)}
-    
-    # Write mapping file only if overwrite is True or it doesn't exist
-    if overwrite or not os.path.exists(MAPPING_FILE):
-        with open(MAPPING_FILE, "w") as f:
-            json.dump(doc_id_to_path, f)
+    if not overwrite and os.path.exists(MAPPING_FILE):
+        with open(MAPPING_FILE, "r") as f:
+            doc_id_to_path = json.load(f)
+        # Ensure no duplicate entries by finding the max doc_id
+        existing_doc_ids = set(doc_id_to_path.keys())
+        max_doc_id = max(map(int, existing_doc_ids)) if existing_doc_ids else 0
+    else:
+        doc_id_to_path = {}
+        max_doc_id = 0
+
+    # Add new documents to the mapping
+    new_doc_id_to_path = {
+        max_doc_id + i + 1: pdf_path for i, pdf_path in enumerate(pdf_files) 
+        if pdf_path not in doc_id_to_path.values()  # Avoid duplicate file entries
+    }
+    doc_id_to_path.update(new_doc_id_to_path)
+
+    with open(MAPPING_FILE, "w") as f:
+        json.dump(doc_id_to_path, f, indent=4)
     
     # Add documents to the index individually
-    for doc_id, pdf_path in doc_id_to_path.items():
+    for doc_id, pdf_path in new_doc_id_to_path.items():
         print(f"Adding document {pdf_path} to index with doc_id {doc_id}")
         RAG.add_to_index(
             input_item=pdf_path,
