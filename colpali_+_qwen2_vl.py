@@ -323,16 +323,19 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=3)
+    search_results = search_query_with_rag(RAG, query, k=2)
     ocr_texts = []
     # Process OCR on top results
     for result in search_results:
         doc_id = result["doc_id"]
+        print(doc_id)
         pdf_path = doc_id_to_path[str(doc_id)]
+        print(pdf_path)
         ocr_texts = process_pdf(pdf_path)
 
     # Combine texts from all documents
     combined_text = "\n\n".join(ocr_texts)
+    print(combined_text)
 
     # Prepare LLM and processor
     model, processor, device = initialize_llm()
@@ -350,4 +353,4 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     print("answer:- " + str(output))
 
 if __name__ == "__main__":
-    process_query_across_pdfs("Explain power of accomoddation", True)
+    process_query_across_pdfs("Explain Anodizing", True)
