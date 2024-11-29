@@ -6,13 +6,14 @@ import json
 import torch
 from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
-from PIL import Image
+from PIL import Image, ImageEnhance
 import io
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
 
 app = FastAPI()
+TEMP_IMAGE_PATH = "./temp_image.jpg"
 
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
@@ -142,26 +143,48 @@ def search_query_with_rag(RAG, query, k=10):
     results = RAG.search(query, k=k)
     return results
 
-def compress_image(image, new_width=256, new_height=256, quality=75):
-    """Compress and resize an image."""
-    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
-    buffer = io.BytesIO()
-    resized_image.save(buffer, format="JPEG", quality=quality)
-    buffer.seek(0)
-    return Image.open(buffer)
-
 def initialize_ocr_model():
     """Loads the OCR model."""
     return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
 
-def process_ocr(image, save_path="./reference.jpg"):
-    """Processes OCR on an image and extracts text."""
-    image.save(save_path, "JPEG")
-    ocr_model = initialize_ocr_model()
-    document = DocumentFile.from_images(save_path)
-    ocr_result = ocr_model(document)
-    os.remove(save_path)  # Clean up saved file
-    return ocr_result.export()
+def compress_image(image, quality=95):
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=quality)
+    buffer.seek(0)
+    return Image.open(buffer)
+
+def enhance_image(image):
+    enhancer = ImageEnhance.Contrast(image)
+    return enhancer.enhance(2.0)
+
+def clean_text(text):
+    text = re.sub(r"-{2,}", " ", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
+
+def extract_text_from_ocr(ocr_result):
+    plain_text = []
+    for page in ocr_result['pages']:
+        for block in page['blocks']:
+            for line in block['lines']:
+                for word in line['words']:
+                    plain_text.append(word['value'])
+    return " ".join(plain_text)
+
+def process_pdf(pdf_path):
+    ocr_model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+    images = convert_pdf_to_images(pdf_path)
+    extracted_text = []
+    for page_number, image in enumerate(images, start=1):
+        image = enhance_image(image)
+        compressed_image = compress_image(image)
+        compressed_image.save(TEMP_IMAGE_PATH, "JPEG")
+        document = DocumentFile.from_images(TEMP_IMAGE_PATH)
+        ocr_result = ocr_model(document).export()
+        plain_text = extract_text_from_ocr(ocr_result)
+        cleaned_text = clean_text(plain_text)
+        os.remove(TEMP_IMAGE_PATH)
+    return "\n\n".join(cleaned_text)
 
 def is_same_line(box1, box2):
     """Determines if two boxes are on the same line."""
@@ -299,19 +322,13 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=10)
+    search_results = search_query_with_rag(RAG, query, k=3)
     ocr_texts = []
     # Process OCR on top results
     for result in search_results:
         doc_id = result["doc_id"]
-        page_num = result["page_num"]
         pdf_path = doc_id_to_path[str(doc_id)]
-        images = convert_pdf_to_images(pdf_path)
-        compressed_image = compress_image(images[page_num - 1])
-        ocr_result = process_ocr(compressed_image)
-        extracted_data = extract_text_and_boxes(ocr_result)
-        space_line_texts = layout_text_with_spaces(extracted_data["text"], extracted_data["boxes"])
-        ocr_texts.append("\n".join(space_line_texts))
+        ocr_texts = process_pdf(pdf_path)
 
     # Combine texts from all documents
     combined_text = "\n\n".join(ocr_texts)
