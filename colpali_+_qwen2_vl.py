@@ -8,6 +8,7 @@ from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
 from PIL import Image, ImageEnhance
 import io
+import re
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
