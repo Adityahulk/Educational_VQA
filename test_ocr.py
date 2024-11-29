@@ -1,81 +1,57 @@
-from fastapi import FastAPI, HTTPException
-import os
 from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
-from PIL import Image
-import io
 from pdf2image import convert_from_path
+from PIL import Image, ImageEnhance
+import io
+import os
+import re
 
-app = FastAPI()
-
-# Set environment variables for library compatibility
-os.environ['USE_TORCH'] = 'YES'
-os.environ['USE_TF'] = 'NO'
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
-# Paths to the PDF files and mapping file
-PDF_DIRECTORY = "./document_test"
-
+PDF_PATH = "./document_test/document_11.pdf"
+TEMP_IMAGE_PATH = "./temp_image.jpg"
 
 def convert_pdf_to_images(pdf_path):
-    """Converts a PDF file into a list of images."""
     return convert_from_path(pdf_path)
 
-
-def compress_image(image, new_width=256, new_height=256, quality=75):
-    """Compress and resize an image."""
-    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+def compress_image(image, quality=95):
     buffer = io.BytesIO()
-    resized_image.save(buffer, format="JPEG", quality=quality)
+    image.save(buffer, format="JPEG", quality=quality)
     buffer.seek(0)
     return Image.open(buffer)
 
-def initialize_ocr_model():
-    """Loads the OCR model."""
-    return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+def enhance_image(image):
+    enhancer = ImageEnhance.Contrast(image)
+    return enhancer.enhance(2.0)
 
-def process_ocr(image, save_path="./reference.jpg"):
-    """Processes OCR on an image and extracts text."""
-    image.save(save_path, "JPEG")
-    ocr_model = initialize_ocr_model()
-    document = DocumentFile.from_images(save_path)
-    ocr_result = ocr_model(document)
+def clean_text(text):
+    text = re.sub(r"-{2,}", " ", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
+
+def extract_text_from_ocr(ocr_result):
+    plain_text = []
+    for page in ocr_result['pages']:
+        for block in page['blocks']:
+            for line in block['lines']:
+                for word in line['words']:
+                    plain_text.append(word['value'])
+    return " ".join(plain_text)
+
+def process_pdf(pdf_path):
+    ocr_model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+    images = convert_pdf_to_images(pdf_path)
     extracted_text = []
-    for page in ocr_result.pages:
-        for block in page.blocks:
-            for line in block.lines:
-                for word in line.words:
-                    extracted_text.append(word.value)
-    return ' '.join(extracted_text)
-
-
-def process_query_across_pdfs(folder_path):
-    """Processes OCR on all PDFs in a folder and extracts text."""
-    ocr_texts = []
-    # List all PDF files in the folder
-    pdf_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith('.pdf')]
-
-    for pdf_path in pdf_files:
-        try:
-            print(f"Processing: {pdf_path}")
-            # Convert PDF pages to images
-            images = convert_pdf_to_images(pdf_path)
-            for page_number, image in enumerate(images):
-                # Compress each image
-                compressed_image = compress_image(image)
-                # Perform OCR on the compressed image
-                ocr_result = process_ocr(compressed_image)
-                ocr_texts.append({
-                    "pdf": pdf_path,
-                    "page": page_number + 1,
-                    "text": ocr_result
-                })
-        except Exception as e:
-            print(f"Error processing {pdf_path}: {str(e)}")
-
-    return ocr_texts
+    for page_number, image in enumerate(images, start=1):
+        image = enhance_image(image)
+        compressed_image = compress_image(image)
+        compressed_image.save(TEMP_IMAGE_PATH, "JPEG")
+        document = DocumentFile.from_images(TEMP_IMAGE_PATH)
+        ocr_result = ocr_model(document).export()
+        plain_text = extract_text_from_ocr(ocr_result)
+        cleaned_text = clean_text(plain_text)
+        extracted_text.append(f"Page {page_number}:\n{cleaned_text}")
+        os.remove(TEMP_IMAGE_PATH)
+    return "\n\n".join(extracted_text)
 
 if __name__ == "__main__":
-    results = process_query_across_pdfs(PDF_DIRECTORY)
-    for result in results:
-        print(f"PDF: {result['pdf']} | Page: {result['page']}\nExtracted Text:\n{result['text']}\n{'-'*80}")
+    extracted_text = process_pdf(PDF_PATH)
+    print(f"Extracted Text:\n{extracted_text}")
