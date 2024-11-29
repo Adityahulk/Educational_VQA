@@ -353,4 +353,4 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     print("answer:- " + str(output))
 
 if __name__ == "__main__":
-    process_query_across_pdfs("Explain Anodizing", True)
+    process_query_across_pdfs("Explain Anodizing", False)
