@@ -327,7 +327,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Process OCR on top results
     for result in search_results:
         doc_id = result["doc_id"]
-        pdf_path = doc_id_to_path[str(doc_id)]
+        pdf_path = doc_id_to_path[str(doc_id+1)]
         ocr_texts = process_pdf(pdf_path)
 
     # Combine texts from all documents
