@@ -40,8 +40,13 @@ def process_ocr(image, save_path="./reference.jpg"):
     ocr_model = initialize_ocr_model()
     document = DocumentFile.from_images(save_path)
     ocr_result = ocr_model(document)
-    os.remove(save_path)  # Clean up saved file
-    return ocr_result.export()
+    extracted_text = []
+    for page in ocr_result.pages:
+        for block in page.blocks:
+            for line in block.lines:
+                for word in line.words:
+                    extracted_text.append(word.value)
+    return ' '.join(extracted_text)
 
 
 def process_query_across_pdfs(folder_path):
