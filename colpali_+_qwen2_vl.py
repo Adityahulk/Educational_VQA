@@ -12,9 +12,11 @@ import re
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from qwen_vl_utils import process_vision_info
 
 app = FastAPI()
 TEMP_IMAGE_PATH = "./temp_image.jpg"
+TEMP_IMAGE_DIR = "./temp_images/"
 
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
@@ -305,8 +307,53 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
-# @app.post("/query")
+def extract_pages_as_images(pdf_path, page_numbers, temp_image_dir):
+    """Extract specific pages from a PDF and save them as images."""
+    os.makedirs(temp_image_dir, exist_ok=True)
+    image_paths = []
+    for page_num in page_numbers:
+        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
+        temp_image_path = os.path.join(temp_image_dir, f"page_{page_num}.jpg")
+        images[0].save(temp_image_path, "JPEG")  # Save the page as an image
+        image_paths.append(temp_image_path)
+    return image_paths
 
+def prepare_vlm_input(image_path, prompt_text):
+    """Prepare inputs for the Vision-Language Model."""
+    # Load Qwen2VL model and processor
+    model = Qwen2VLForConditionalGeneration.from_pretrained(
+        "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto", device_map="auto"
+    )
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
+
+    # Prepare messages for the VLM
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image_path},
+                {"type": "text", "text": prompt_text},
+            ],
+        }
+    ]
+
+    # Prepare inputs for inference
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    )
+    inputs = inputs.to("cuda")
+
+    return model, processor, inputs
+
+# @app.post("/query")
 def process_query_across_pdfs(query, use_index_documents: bool):
     # query = request.query
     """Processes a query across multiple PDFs."""
@@ -325,6 +372,28 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=2)
     print(search_results)
+
+    image_paths = []
+    for result in search_results:
+        doc_id = result["doc_id"]
+        page_num = result["page_num"]
+        filename = result["metadata"]["filename"]
+        pdf_path = os.path.join(PDF_DIRECTORY, filename)
+        image_paths += extract_pages_as_images(pdf_path, [page_num], TEMP_IMAGE_DIR)
+
+    # Run VLM inference across all images
+    model, processor, inputs = prepare_vlm_input(image_paths, query)
+    generated_ids = model.generate(**inputs, max_new_tokens=128)
+    generated_ids_trimmed = [
+        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    ]
+    output_texts = processor.batch_decode(
+        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )
+
+    # Combine the results
+    combined_output = "\n".join(output_texts)
+    print(f"Combined Output for Query '{query}':\n{combined_output}")
     # ocr_texts = []
     # # Process OCR on top results
     # for result in search_results:
