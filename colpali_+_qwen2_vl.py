@@ -345,7 +345,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         "You are asked to answer questions asked on a document image.\n"
         "The answers to questions are short text spans taken verbatim from the document. "
         "This means that the answers comprise a set of contiguous text tokens present in the document.\n\n"
-        f"Document:\n{combined_text}\n\nQuestion: {query}\n\nAnswer:"
+        f"Document: {combined_text} and my Question is: {query}, prove me the Answer:"
     )
 
     # Generate output
