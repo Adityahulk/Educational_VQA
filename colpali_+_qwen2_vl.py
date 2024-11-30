@@ -318,7 +318,7 @@ def extract_pages_as_images(pdf_path, page_numbers, temp_image_dir):
         image_paths.append(temp_image_path)
     return image_paths
 
-def prepare_vlm_input(image_path, prompt_text):
+def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained(
@@ -335,6 +335,7 @@ def prepare_vlm_input(image_path, prompt_text):
                 {"type": "text", "text": prompt_text},
             ],
         }
+        for image_path in image_paths
     ]
 
     # Prepare inputs for inference
