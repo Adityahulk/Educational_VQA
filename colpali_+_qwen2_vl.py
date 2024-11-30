@@ -332,7 +332,6 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         pdf_path = doc_id_to_path[str(doc_id)]
         print(pdf_path)
         ocr_texts = process_pdf(pdf_path)
-        print(ocr_texts)
 
     # Combine texts from all documents
     combined_text = "".join(ocr_texts)
