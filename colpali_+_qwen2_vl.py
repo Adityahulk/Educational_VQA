@@ -332,10 +332,11 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         pdf_path = doc_id_to_path[str(doc_id)]
         print(pdf_path)
         ocr_texts = process_pdf(pdf_path)
+        print(ocr_texts)
 
     # Combine texts from all documents
     combined_text = "\n\n".join(ocr_texts)
-    print(combined_text)
+    # print(combined_text)
 
     # Prepare LLM and processor
     model, processor, device = initialize_llm()
