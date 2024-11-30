@@ -331,10 +331,11 @@ def prepare_vlm_input(image_paths, prompt_text):
         {
             "role": "user",
             "content": [
-                {"type": "image", "image": image_paths[0]},
+                {"type": "image", "image": image_path},
                 {"type": "text", "text": prompt_text},
             ],
         }
+        for image_path in image_paths
     ]
 
     # Prepare inputs for inference
