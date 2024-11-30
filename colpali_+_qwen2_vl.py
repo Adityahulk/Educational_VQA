@@ -185,7 +185,7 @@ def process_pdf(pdf_path):
         plain_text = extract_text_from_ocr(ocr_result)
         cleaned_text = clean_text(plain_text)
         os.remove(TEMP_IMAGE_PATH)
-    return "\n\n".join(cleaned_text)
+    return "".join(cleaned_text)
 
 def is_same_line(box1, box2):
     """Determines if two boxes are on the same line."""
