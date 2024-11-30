@@ -335,7 +335,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         print(ocr_texts)
 
     # Combine texts from all documents
-    combined_text = "\n\n".join(ocr_texts)
+    combined_text = "".join(ocr_texts)
     # print(combined_text)
 
     # Prepare LLM and processor
