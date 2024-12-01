@@ -21,7 +21,8 @@ TEMP_IMAGE_DIR = "./temp_images/"
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
 os.environ['USE_TF'] = 'NO'
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Paths to the PDF files and mapping file
 PDF_DIRECTORY = "./document_test"
