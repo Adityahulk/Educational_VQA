@@ -323,21 +323,24 @@ def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto", device_map="auto"
+        "Qwen/Qwen2-VL-7B-Instruct", 
+        torch_dtype=torch.bfloat16, 
+        attn_implementation="flash_attention_2",
     )
+
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
 
     # Prepare messages for the VLM
     messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "image", "image": image_path},
-                {"type": "text", "text": prompt_text},
-            ],
-        }
-        for image_path in image_paths
-    ]
+    {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": prompt_text},  # Shared query text
+        ] + [
+            {"type": "image", "image": image_path} for image_path in image_paths  # Images from the list
+        ]
+    }
+]
 
     # Prepare inputs for inference
     text = processor.apply_chat_template(
