@@ -325,7 +325,7 @@ def prepare_vlm_input(image_paths, prompt_text):
     model = Qwen2VLForConditionalGeneration.from_pretrained(
         "Qwen/Qwen2-VL-7B-Instruct", 
         torch_dtype=torch.bfloat16, 
-        attn_implementation="flash_attention_2",
+        attn_implementation="sdpa",
     )
 
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
