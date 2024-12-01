@@ -326,7 +326,7 @@ def prepare_vlm_input(image_paths, prompt_text):
     min_pixels = 256*28*28
     max_pixels = 1280*28*28
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
-    
+    print(len(image_paths))
     # Prepare messages for the VLM
     messages = [
         {
