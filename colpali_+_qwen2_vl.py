@@ -334,7 +334,7 @@ def prepare_vlm_input(image_paths, prompt_text):
             "content": [
                 {"type": "text", "text": prompt_text},  # Shared query text
             ] + [
-                {"type": "image", "image": image_paths[0]}  # Images from the list
+                {"type": "image", "image": image_path} for image_path in image_paths  # Images from the list
             ]
         }
     ]
