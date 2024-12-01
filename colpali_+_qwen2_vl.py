@@ -372,7 +372,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=2)
+    search_results = search_query_with_rag(RAG, query, k=6)
     print(search_results)
     
     image_paths = []
