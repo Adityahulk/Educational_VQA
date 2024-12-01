@@ -323,12 +323,10 @@ def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", device_map="auto")
-    # min_pixels = 256*28*28
-    # max_pixels = 1280*28*28
-    # processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
-
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
-
+    min_pixels = 256*28*28
+    max_pixels = 1280*28*28
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+    
     # Prepare messages for the VLM
     messages = [
         {
