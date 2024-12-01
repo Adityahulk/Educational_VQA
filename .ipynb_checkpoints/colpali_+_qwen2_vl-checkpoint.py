@@ -1,13 +1,22 @@
+from fastapi import FastAPI, HTTPException
+import argparse
+from pydantic import BaseModel
 import os
 import json
 import torch
 from doctr.models import ocr_predictor
 from doctr.io import DocumentFile
-from PIL import Image
+from PIL import Image, ImageEnhance
 import io
+import re
 from pdf2image import convert_from_path
 from byaldi import RAGMultiModalModel
 from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+from qwen_vl_utils import process_vision_info
+
+app = FastAPI()
+TEMP_IMAGE_PATH = "./temp_image.jpg"
+TEMP_IMAGE_DIR = "./temp_images/"
 
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
@@ -20,6 +29,9 @@ MAPPING_FILE = './doc_id_to_path.json'
 INDEX_ROOT = "/home/ubuntu/Educational_VQA/.byaldi"
 INDEX_NAME = "global_index"
 overwrite= False
+
+class QueryRequest(BaseModel):
+    query: str
 
 def convert_pdf_to_images(pdf_path):
     """Converts a PDF file into a list of images."""
@@ -46,9 +58,6 @@ def initialize_rag_model(overwrite=False, device="cuda", verbose=1):
         # Initialize RAG from pretrained
         print("Initializing RAG from pretrained.")
         RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
-        # Index documents
-        print("Indexing documents.")
-        index_documents_in_folder(RAG, PDF_DIRECTORY, INDEX_NAME, overwrite=overwrite)
     return RAG
 
 '''
@@ -90,31 +99,95 @@ def index_documents_in_folder(RAG, folder_path, index_name, overwrite=False):
         store_collection_with_index=False,
         overwrite=overwrite,
     )
+
+def add_index_documents_in_folder(RAG, folder_path, index_name, overwrite=False):
+    """
+    Indexes all documents in a folder and creates a doc_id-to-path mapping 
+    using the `add_to_index` method.
+    """
+    print(f"Indexing documents in {folder_path} with index_name {index_name}, overwrite={overwrite}")
+    
+    # Get list of PDF files
+    pdf_files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith(".pdf")]
+    
+    if not overwrite and os.path.exists(MAPPING_FILE):
+        with open(MAPPING_FILE, "r") as f:
+            doc_id_to_path = json.load(f)
+        # Ensure no duplicate entries by finding the max doc_id
+        existing_doc_ids = set(doc_id_to_path.keys())
+        max_doc_id = max(map(int, existing_doc_ids)) if existing_doc_ids else 0
+    else:
+        doc_id_to_path = {}
+        max_doc_id = 0
+
+    # Add new documents to the mapping
+    new_doc_id_to_path = {
+        max_doc_id + i + 1: pdf_path for i, pdf_path in enumerate(pdf_files) 
+        if pdf_path not in doc_id_to_path.values()  # Avoid duplicate file entries
+    }
+    doc_id_to_path.update(new_doc_id_to_path)
+
+    with open(MAPPING_FILE, "w") as f:
+        json.dump(doc_id_to_path, f, indent=4)
+    
+    # Add documents to the index individually
+    for doc_id, pdf_path in new_doc_id_to_path.items():
+        print(f"Adding document {pdf_path} to index with doc_id {doc_id}")
+        RAG.add_to_index(
+            input_item=pdf_path,
+            store_collection_with_index=False,  # Adjust based on your requirement
+            doc_id=doc_id,
+            metadata={"filename": os.path.basename(pdf_path)}  # Optional metadata
+        )
+    print(f"Indexing completed for {len(pdf_files)} documents.")
+
 def search_query_with_rag(RAG, query, k=10):
     """Performs a search query on the indexed data."""
     results = RAG.search(query, k=k)
     return results
 
-def compress_image(image, new_width=256, new_height=256, quality=75):
-    """Compress and resize an image."""
-    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
-    buffer = io.BytesIO()
-    resized_image.save(buffer, format="JPEG", quality=quality)
-    buffer.seek(0)
-    return Image.open(buffer)
-
 def initialize_ocr_model():
     """Loads the OCR model."""
     return ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
 
-def process_ocr(image, save_path="./reference.jpg"):
-    """Processes OCR on an image and extracts text."""
-    image.save(save_path, "JPEG")
-    ocr_model = initialize_ocr_model()
-    document = DocumentFile.from_images(save_path)
-    ocr_result = ocr_model(document)
-    os.remove(save_path)  # Clean up saved file
-    return ocr_result.export()
+def compress_image(image, quality=95):
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=quality)
+    buffer.seek(0)
+    return Image.open(buffer)
+
+def enhance_image(image):
+    enhancer = ImageEnhance.Contrast(image)
+    return enhancer.enhance(2.0)
+
+def clean_text(text):
+    text = re.sub(r"-{2,}", " ", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
+
+def extract_text_from_ocr(ocr_result):
+    plain_text = []
+    for page in ocr_result['pages']:
+        for block in page['blocks']:
+            for line in block['lines']:
+                for word in line['words']:
+                    plain_text.append(word['value'])
+    return " ".join(plain_text)
+
+def process_pdf(pdf_path):
+    ocr_model = ocr_predictor(det_arch='db_resnet50', reco_arch='crnn_vgg16_bn', pretrained=True)
+    images = convert_pdf_to_images(pdf_path)
+    extracted_text = []
+    for page_number, image in enumerate(images, start=1):
+        image = enhance_image(image)
+        compressed_image = compress_image(image)
+        compressed_image.save(TEMP_IMAGE_PATH, "JPEG")
+        document = DocumentFile.from_images(TEMP_IMAGE_PATH)
+        ocr_result = ocr_model(document).export()
+        plain_text = extract_text_from_ocr(ocr_result)
+        cleaned_text = clean_text(plain_text)
+        os.remove(TEMP_IMAGE_PATH)
+    return "".join(cleaned_text)
 
 def is_same_line(box1, box2):
     """Determines if two boxes are on the same line."""
@@ -216,7 +289,15 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     
     # Ensure model inference uses the correct device
     with torch.no_grad():  # Disable gradient calculation for inference
-        generated_ids = model.generate(**inputs, max_new_tokens=10000)
+        # Generate with more diverse sampling parameters
+        generated_ids = model.generate(
+            **inputs, 
+            max_new_tokens=300,  # Limit the output length
+            do_sample=True,       # Use sampling for diversity
+            top_p=0.95,           # Nucleus sampling
+            top_k=50,             # Limit candidate tokens
+            temperature=0.7       # Control randomness
+        )
     
     # Decode the outputs, handling sequences properly
     results = processor.batch_decode(
@@ -226,52 +307,122 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
-def process_query_across_pdfs(query, k=10):
+def extract_pages_as_images(pdf_path, page_numbers, temp_image_dir):
+    """Extract specific pages from a PDF and save them as images."""
+    os.makedirs(temp_image_dir, exist_ok=True)
+    image_paths = []
+    for page_num in page_numbers:
+        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
+        temp_image_path = os.path.join(temp_image_dir, f"page_{page_num}.jpg")
+        images[0].save(temp_image_path, "JPEG")  # Save the page as an image
+        image_paths.append(temp_image_path)
+    return image_paths
+
+def prepare_vlm_input(image_paths, prompt_text):
+    """Prepare inputs for the Vision-Language Model."""
+    # Load Qwen2VL model and processor
+    model = Qwen2VLForConditionalGeneration.from_pretrained(
+        "Qwen/Qwen2-VL-2B-Instruct", torch_dtype="auto", device_map="auto"
+    )
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
+
+    # Prepare messages for the VLM
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image_path},
+                {"type": "text", "text": prompt_text},
+            ],
+        }
+        for image_path in image_paths
+    ]
+
+    # Prepare inputs for inference
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    )
+    inputs = inputs.to("cuda")
+
+    return model, processor, inputs
+
+# @app.post("/query")
+def process_query_across_pdfs(query, use_index_documents: bool):
+    # query = request.query
     """Processes a query across multiple PDFs."""
     RAG = initialize_rag_model(overwrite=False, device="cuda", verbose=1)
     
     # Load index and document mapping
-    if not os.path.exists(MAPPING_FILE):
-        print('-----yes mapping file exists')
+    if use_index_documents:
+        # Use the specified indexing function
         index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    else:
+        add_index_documents_in_folder(RAG, folder_path=PDF_DIRECTORY, index_name="global_index")
+    
     with open(MAPPING_FILE, "r") as f:
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=k)
-    ocr_texts = []
-
-    # Process OCR on top results
+    search_results = search_query_with_rag(RAG, query, k=2)
+    print(search_results)
+    
+    image_paths = []
     for result in search_results:
         doc_id = result["doc_id"]
         page_num = result["page_num"]
-        pdf_path = doc_id_to_path[str(doc_id)]
-        images = convert_pdf_to_images(pdf_path)
-        compressed_image = compress_image(images[page_num - 1])
-        ocr_result = process_ocr(compressed_image)
-        extracted_data = extract_text_and_boxes(ocr_result)
-        space_line_texts = layout_text_with_spaces(extracted_data["text"], extracted_data["boxes"])
-        ocr_texts.append("\n".join(space_line_texts))
+        filename = result["metadata"]["filename"]
+        pdf_path = os.path.join(PDF_DIRECTORY, filename)
+        image_paths += extract_pages_as_images(pdf_path, [page_num], TEMP_IMAGE_DIR)
 
-    # Combine texts from all documents
-    combined_text = "\n\n".join(ocr_texts)
+    # Run VLM inference across all images
+    model, processor, inputs = prepare_vlm_input(image_paths, query)
+    print(torch.cuda.is_available())
+    generated_ids = model.generate(**inputs, max_new_tokens=128)
+    generated_ids_trimmed = [
+        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    ]
+    output_texts = processor.batch_decode(
+        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )
+
+    # Combine the results
+    combined_output = "\n".join(output_texts)
+    print(f"Combined Output for Query '{query}':\n{combined_output}")
+    ocr_texts = []
+    # # Process OCR on top results
+    for result in search_results:
+        doc_id = result["doc_id"]
+        print(doc_id)
+        pdf_path = doc_id_to_path[str(doc_id)]
+        print(pdf_path)
+        ocr_texts = process_pdf(pdf_path)
+
+    # # Combine texts from all documents
+    combined_text = "".join(ocr_texts)
+    print(combined_text)
 
     # Prepare LLM and processor
     model, processor, device = initialize_llm()
 
-    # Prepare input for the LLM
+    # # Prepare input for the LLM
     prompt = (
         "You are asked to answer questions asked on a document image.\n"
         "The answers to questions are short text spans taken verbatim from the document. "
         "This means that the answers comprise a set of contiguous text tokens present in the document.\n\n"
-        f"Document:\n{combined_text}\n\nQuestion: {query}\n\nAnswer:"
+        f"Document: {combined_text} and the Question is: {query}, provide  the Answer:"
     )
 
-    # Generate output
+    # # Generate output
     output = generate_answer_with_llm(model, processor, prompt)
-    print("Generated Answer:", output)
-
-# Example usage
+    print("answer:- " + str(output))
+    
 if __name__ == "__main__":
-    user_query = "What is the melting point of the Acetic acid in Table 4.1?"
-    process_query_across_pdfs(user_query, k=20)
+    process_query_across_pdfs("Explain Anodizing", False)

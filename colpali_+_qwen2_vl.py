@@ -373,7 +373,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=2)
     print(search_results)
-
+    
     image_paths = []
     for result in search_results:
         doc_id = result["doc_id"]
@@ -384,6 +384,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
+    print(torch.cuda.is_available())
     generated_ids = model.generate(**inputs, max_new_tokens=128)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
@@ -395,33 +396,33 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Combine the results
     combined_output = "\n".join(output_texts)
     print(f"Combined Output for Query '{query}':\n{combined_output}")
-    # ocr_texts = []
+    ocr_texts = []
     # # Process OCR on top results
-    # for result in search_results:
-    #     doc_id = result["doc_id"]
-    #     print(doc_id)
-    #     pdf_path = doc_id_to_path[str(doc_id)]
-    #     print(pdf_path)
-    #     ocr_texts = process_pdf(pdf_path)
+    for result in search_results:
+        doc_id = result["doc_id"]
+        print(doc_id)
+        pdf_path = doc_id_to_path[str(doc_id)]
+        print(pdf_path)
+        ocr_texts = process_pdf(pdf_path)
 
     # # Combine texts from all documents
-    # combined_text = "".join(ocr_texts)
-    # # print(combined_text)
+    combined_text = "".join(ocr_texts)
+    print(combined_text)
 
     # Prepare LLM and processor
-    # model, processor, device = initialize_llm()
+    model, processor, device = initialize_llm()
 
     # # Prepare input for the LLM
-    # prompt = (
-    #     "You are asked to answer questions asked on a document image.\n"
-    #     "The answers to questions are short text spans taken verbatim from the document. "
-    #     "This means that the answers comprise a set of contiguous text tokens present in the document.\n\n"
-    #     f"Document: {combined_text} and my Question is: {query}, prove me the Answer:"
-    # )
+    prompt = (
+        "You are asked to answer questions asked on a document image.\n"
+        "The answers to questions are short text spans taken verbatim from the document. "
+        "This means that the answers comprise a set of contiguous text tokens present in the document.\n\n"
+        f"Document: {combined_text} and the Question is: {query}, provide  the Answer:"
+    )
 
     # # Generate output
-    # output = generate_answer_with_llm(model, processor, prompt)
-    # print("answer:- " + str(output))
-
+    output = generate_answer_with_llm(model, processor, prompt)
+    print("answer:- " + str(output))
+    
 if __name__ == "__main__":
     process_query_across_pdfs("Explain Anodizing", False)
