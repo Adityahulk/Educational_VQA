@@ -323,7 +323,7 @@ def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2-VL-7B-Instruct", 
+        "Qwen/Qwen2-VL-2B-Instruct", 
         torch_dtype=torch.bfloat16, 
         attn_implementation="sdpa",
         device_map="auto"
