@@ -389,7 +389,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    generated_ids = model.generate(**inputs, max_new_tokens=128)
+    generated_ids = model.generate(**inputs, max_new_tokens=32)
     print(generated_ids)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
