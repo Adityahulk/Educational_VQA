@@ -323,9 +323,11 @@ def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", device_map="auto")
-    min_pixels = 256*28*28
-    max_pixels = 1280*28*28
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+    # min_pixels = 256*28*28
+    # max_pixels = 1280*28*28
+    # processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
 
     # Prepare messages for the VLM
     messages = [
@@ -373,7 +375,6 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Search for the query
     search_results = search_query_with_rag(RAG, query, k=2)
-    print(search_results)
     
     image_paths = []
     for result in search_results:
@@ -385,9 +386,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    # print(inputs)
     generated_ids = model.generate(**inputs, max_new_tokens=128)
-    print(generated_ids)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
     ]
