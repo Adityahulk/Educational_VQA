@@ -21,8 +21,8 @@ TEMP_IMAGE_DIR = "./temp_images/"
 # Set environment variables for library compatibility
 os.environ['USE_TORCH'] = 'YES'
 os.environ['USE_TF'] = 'NO'
-# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Paths to the PDF files and mapping file
 PDF_DIRECTORY = "./document_test"
@@ -385,8 +385,8 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    print(torch.cuda.is_available())
     generated_ids = model.generate(**inputs, max_new_tokens=128)
+    print(generated_ids)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
     ]
