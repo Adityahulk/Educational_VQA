@@ -323,10 +323,7 @@ def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
     model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-7B-Instruct", device_map="auto")
-    
-    min_pixels = 256*28*28
-    max_pixels = 1280*28*28
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
     # Prepare messages for the VLM
     messages = [
         {
@@ -385,18 +382,19 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    generated_ids = model.generate(**inputs, max_new_tokens=128)
-    print(generated_ids)
-    generated_ids_trimmed = [
-        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-    ]
-    output_texts = processor.batch_decode(
-        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-    )
+    print(inputs)
+    # generated_ids = model.generate(**inputs, max_new_tokens=128)
+    # print(generated_ids)
+    # generated_ids_trimmed = [
+    #     out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    # ]
+    # output_texts = processor.batch_decode(
+    #     generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    # )
 
-    # Combine the results
-    combined_output = "\n".join(output_texts)
-    print(f"Combined Output for Query '{query}':\n{combined_output}")
+    # # Combine the results
+    # combined_output = "\n".join(output_texts)
+    # print(f"Combined Output for Query '{query}':\n{combined_output}")
     # ocr_texts = []
     # # # Process OCR on top results
     # for result in search_results:
