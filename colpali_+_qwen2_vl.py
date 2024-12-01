@@ -322,15 +322,11 @@ def extract_pages_as_images(pdf_path, page_numbers, temp_image_dir):
 def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
-    model = Qwen2VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2-VL-2B-Instruct", 
-        torch_dtype=torch.bfloat16, 
-        attn_implementation="sdpa",
-        device_map="auto"
-    )
-
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct")
-
+    model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-7B-Instruct", device_map="auto")
+    
+    min_pixels = 256*28*28
+    max_pixels = 1280*28*28
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
     # Prepare messages for the VLM
     messages = [
         {
@@ -389,7 +385,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
 
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    generated_ids = model.generate(**inputs, max_new_tokens=32)
+    generated_ids = model.generate(**inputs, max_new_tokens=128)
     print(generated_ids)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
