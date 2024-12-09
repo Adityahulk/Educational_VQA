@@ -500,4 +500,4 @@ document_86
 '''
 if __name__ == "__main__":
     # process_query_across_pdfs("How is sodium chloride formulated?", False)
-    process_query_across_pdfs("When electrons drift in a metal from lower to higher potential, does it mean that all the ‘free’ electrons of the metal are moving in the same direction?", False)
+    process_query_across_pdfs("- Mention the equation of photosynthesis and explain the graph showing the absorption spectrum of chlorophyll a, b and the carotenoids.", False)
