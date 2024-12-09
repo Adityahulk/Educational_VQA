@@ -22,7 +22,7 @@ INDEX_DIRECTORY = "./index/global_index"  # Path where index files are stored
 
 def remove_old_index(index_directory):
     """Removes old indexing data if it exists."""
-    import shutil
+   import shutil
     if os.path.exists(index_directory):
         shutil.rmtree(index_directory)
         print(f"Removed old index at {index_directory}.")
@@ -40,7 +40,7 @@ def initialize_rag_model(index_name="global_index"):
     RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
     return RAG
 
-
+#
 def index_documents_in_folder(RAG, folder_path, index_name):
     """Indexes all documents in a folder and creates a doc_id-to-path mapping."""
     index_path = f"./index/{index_name}"
@@ -75,6 +75,7 @@ def compress_image(image, new_width=256, new_height=256, quality=75):
     """Compress and resize an image."""
     resized_image = image.resize((new_width, new_height), Image.LANCZOS)
     buffer = io.BytesIO()
+   # print("Hello")
     resized_image.save(buffer, format="JPEG", quality=quality)
     buffer.seek(0)
     return Image.open(buffer)

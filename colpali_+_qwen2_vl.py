@@ -58,7 +58,7 @@ def initialize_rag_model(overwrite=False, device="cuda", verbose=1):
             shutil.rmtree(index_path)
         # Initialize RAG from pretrained
         print("Initializing RAG from pretrained.")
-        RAG = RAGMultiModalModel.from_pretrained("vidore/colpali")
+        RAG = RAGMultiModalModel.from_pretrained("vidore/colqwen2-v1.0")
     return RAG
 
 '''
@@ -142,7 +142,7 @@ def add_index_documents_in_folder(RAG, folder_path, index_name, overwrite=False)
         )
     print(f"Indexing completed for {len(pdf_files)} documents.")
 
-def search_query_with_rag(RAG, query, k=10):
+def search_query_with_rag(RAG, query, k=2):
     """Performs a search query on the indexed data."""
     results = RAG.search(query, k=k)
     return results
@@ -257,13 +257,13 @@ def initialize_llm():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Running on device:- ", device)
     model = Qwen2VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2-VL-2B-Instruct",
+        "Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4",
         trust_remote_code=True,
         torch_dtype=torch.bfloat16
     ).to(device).eval()
     
     processor = AutoProcessor.from_pretrained(
-        "Qwen/Qwen2-VL-2B-Instruct", 
+        "Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4", 
         trust_remote_code=True
     )
     return model, processor, device
@@ -293,7 +293,7 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
         # Generate with more diverse sampling parameters
         generated_ids = model.generate(
             **inputs, 
-            max_new_tokens=300,  # Limit the output length
+            max_new_tokens=3000,  # Limit the output length
             do_sample=True,       # Use sampling for diversity
             top_p=0.95,           # Nucleus sampling
             top_k=50,             # Limit candidate tokens
@@ -308,24 +308,60 @@ def generate_answer_with_llm(model, processor, text, images=None, videos=None, d
     )
     return results
 
-def extract_pages_as_images(pdf_path, page_numbers, temp_image_dir):
-    """Extract specific pages from a PDF and save them as images."""
+# def extract_pages_as_images(PDF_DIRECTORY, doc_id, temp_image_dir, MAPPING_FILE):
+#     """Extract the first three pages from a PDF, save them as images, and resize them to 768x768."""
+#     os.makedirs(temp_image_dir, exist_ok=True)
+#     #image_paths = []
+#     #pdf_path = MAPPING_FILE[]
+#     for page_num in page_numbers:
+        
+#         # Convert specific PDF page to an image
+#         images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
+#         #print('images---', images)
+        
+#         # Define the path for saving the resized image
+#         temp_image_path = os.path.join(temp_image_dir, f"page_{page_num}.jpg")
+        
+#         # Resize the image to 768x768 and save it
+#         resized_image = images[0].resize((1024, 1024), Image.Resampling.LANCZOS)
+#         resized_image.save(temp_image_path, "JPEG")
+        
+#         # Add the saved image path to the list
+#         image_paths.append(temp_image_path)
+#         #print('image_paths', image_paths)
+        
+#     return image_paths
+
+def extract_pages_as_images(pdf_path, page_num, temp_image_dir, MAPPING_FILE):
+    """Extract the first three pages from a PDF, save them as images, and resize them to 768x768."""
     os.makedirs(temp_image_dir, exist_ok=True)
     image_paths = []
-    for page_num in page_numbers:
-        images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
-        temp_image_path = os.path.join(temp_image_dir, f"page_{page_num}.jpg")
-        images[0].save(temp_image_path, "JPEG")  # Save the page as an image
-        image_paths.append(temp_image_path)
+    #pdf_path = MAPPING_FILE[]
+    
+    # Convert specific PDF page to an image
+    images = convert_from_path(pdf_path, first_page=page_num, last_page=page_num)
+    print('images---', images)
+    
+    # Define the path for saving the resized image
+    temp_image_path = os.path.join(temp_image_dir, f"page_{page_num}.jpg")
+    
+    # Resize the image to 768x768 and save it
+    resized_image = images[0].resize((1024, 1024), Image.Resampling.LANCZOS)
+    resized_image.save(temp_image_path, "JPEG")
+    
+    # Add the saved image path to the list
+    image_paths.append(temp_image_path)
+    #print('image_paths', image_paths)
+    
     return image_paths
 
 def prepare_vlm_input(image_paths, prompt_text):
     """Prepare inputs for the Vision-Language Model."""
     # Load Qwen2VL model and processor
-    model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", device_map="auto")
+    model = Qwen2VLForConditionalGeneration.from_pretrained("Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4", device_map="auto")
     min_pixels = 256*28*28
     max_pixels = 1280*28*28
-    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-2B-Instruct", min_pixels=min_pixels, max_pixels=max_pixels)
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4", min_pixels=min_pixels, max_pixels=max_pixels)
     print(len(image_paths))
     # Prepare messages for the VLM
     messages = [
@@ -372,23 +408,33 @@ def process_query_across_pdfs(query, use_index_documents: bool):
         doc_id_to_path = json.load(f)
 
     # Search for the query
-    search_results = search_query_with_rag(RAG, query, k=6)
-    print(search_results)
+    search_results = search_query_with_rag(RAG, query, k=2)
+    print('search_results----',search_results)
     
     image_paths = []
     for result in search_results:
         doc_id = result["doc_id"]
         page_num = result["page_num"]
-        filename = result["metadata"]["filename"]
-        pdf_path = os.path.join(PDF_DIRECTORY, filename)
-        image_paths += extract_pages_as_images(pdf_path, [page_num], TEMP_IMAGE_DIR)
+        #filename = result["metadata"]["filename"]
+        #pdf_path = os.path.join(PDF_DIRECTORY, filename)
 
+        with open('doc_id_to_path.json', 'r') as file:
+            pdf_paths = json.load(file)
+        pdf_path = pdf_paths.get(str(doc_id+1))
+        print(f"pdf_path: {pdf_path}, page_num: {page_num}, doc_id: {doc_id}")
+        # image_paths += extract_pages_as_images(PDF_DIRECTORY, doc_id, TEMP_IMAGE_DIR, MAPPING_FILE)
+        image_paths += extract_pages_as_images(pdf_path, page_num, TEMP_IMAGE_DIR, MAPPING_FILE)
+
+    print('image_paths after adding----', image_paths)
+    image_paths = image_paths[0:2]
     # Run VLM inference across all images
     model, processor, inputs = prepare_vlm_input(image_paths, query)
-    generated_ids = model.generate(**inputs, max_new_tokens=128)
+    torch.cuda.empty_cache()
+    generated_ids = model.generate(**inputs, max_new_tokens=1000)
     generated_ids_trimmed = [
         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
     ]
+    torch.cuda.empty_cache()
     output_texts = processor.batch_decode(
         generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
     )
@@ -423,6 +469,35 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # # # Generate output
     # output = generate_answer_with_llm(model, processor, prompt)
     # print("answer:- " + str(output))
-    
+
+'''
+document_101
+1. (page: 311–313, 315–317) Explain how the concept of binding energy per nucleon helps us understand nuclear stability and its implications for fission and fusion reactions.
+2. (314–317) Compare and contrast the processes of nuclear fission and nuclear fusion, emphasizing the energy release mechanisms in both.
+3. (308–309) What role do isotopes, isobars, and isotones play in understanding nuclear structure and reactions? Illustrate with examples.
+4. (310–311) How does Einstein’s mass-energy equivalence principle apply to nuclear reactions, and how does it differ from its application in chemical reactions?
+5. (310-311) How does Einstein’s mass-energy equivalence principle apply to nuclear reactions and how it explain mass defect?
+
+document_79
+1. (125–127) Differentiate between geometrical and optical isomerism in coordination compounds with examples.
+2. (128–130) Discuss the differences between the Valence Bond Theory (VBT) and Crystal Field Theory (CFT) in explaining the bonding in coordination compounds.
+3. (131–133) What is the crystal field splitting energy, and how does it determine the magnetic properties of octahedral complexes?
+4. (135-136) Explain Bonding in Metal Carbonyls.
+
+document_86
+1. (46–49) Describe the methods and challenges historians face in deciphering and interpreting ancient inscriptions.
+2. (38-40)Evaluate the impact of agricultural innovations, such as the use of iron ploughs and transplantation, on rural society and economy.
+'''
+
+'''
+Including images and equation:
+document_8
+1. (131-132) Using Mendel’s dihybrid cross experiment, calculate the expected phenotypic ratio for a cross between heterozygous tall plants with round seeds (TtRr). Describe how independent assortment influences this ratio. -----> Wrong answer
+2. (130-131) Based on Mendel’s monohybrid cross, design an experiment to confirm the 1:2:1 genotypic ratio in the F2 generation for tall and short plants. Include the method and calculations for phenotypic and genotypic ratios. -----> Wrong answer
+
+document_86
+
+'''
 if __name__ == "__main__":
-    process_query_across_pdfs("Give me general properties for ionic compounds", False)
+    # process_query_across_pdfs("How is sodium chloride formulated?", False)
+    process_query_across_pdfs("Based on Mendel’s monohybrid cross, design an experiment to confirm the 1:2:1 genotypic ratio in the F2 generation for tall and short plants. Include the method and calculations for phenotypic and genotypic ratios.", False)
