@@ -280,6 +280,7 @@ def process_query_across_pdfs(query, use_index_documents: bool):
     # Combine the results
     combined_output = "\n".join(output_texts)
     print(f"Combined Output for Query '{query}':\n{combined_output}")
+    return combined_output
 
 def main():
     st.title("PDF Query Processor")
