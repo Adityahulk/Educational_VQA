@@ -500,4 +500,4 @@ document_86
 '''
 if __name__ == "__main__":
     # process_query_across_pdfs("How is sodium chloride formulated?", False)
-    process_query_across_pdfs("Based on Mendel’s monohybrid cross, design an experiment to confirm the 1:2:1 genotypic ratio in the F2 generation for tall and short plants. Include the method and calculations for phenotypic and genotypic ratios.", False)
+    process_query_across_pdfs("When electrons drift in a metal from lower to higher potential, does it mean that all the ‘free’ electrons of the metal are moving in the same direction?", False)
