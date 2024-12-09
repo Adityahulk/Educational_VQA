@@ -500,4 +500,4 @@ document_86
 '''
 if __name__ == "__main__":
     # process_query_across_pdfs("How is sodium chloride formulated?", False)
-    process_query_across_pdfs("- Mention the equation of photosynthesis and explain the graph showing the absorption spectrum of chlorophyll a, b and the carotenoids.", False)
+    process_query_across_pdfs("- Identify the substance oxidised reduced, oxidising agent and reducing agent for the following reaction: 2AgBr (s) + C6H6O2(aq) → 2Ag(s) + 2HBr (aq) + C6H4O2(aq)", False)
